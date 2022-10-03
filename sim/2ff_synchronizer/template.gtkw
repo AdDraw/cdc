@@ -1,0 +1,52 @@
+[*]
+[*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
+[*] Mon Oct  3 19:35:07 2022
+[*]
+[dumpfile] "/home/adam/git_repos/cdc/sim/2ff_synchronizer/dump.vcd"
+[dumpfile_mtime] "Mon Oct  3 19:28:15 2022"
+[dumpfile_size] 12454
+[savefile] "/home/adam/git_repos/cdc/sim/2ff_synchronizer/template.gtkw"
+[timestart] 107300
+[size] 3766 2096
+[pos] -1 -1
+*-14.614988 264860 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 233
+[signals_width] 199
+[sst_expanded] 1
+[sst_vpaned_height] 656
+@28
+tb.sync.rst_ni
+@200
+-
+@28
+tb.clk_slow
+tb.data_send
+[color] 2
+tb.data_valid
+@420
+tb.delay
+@28
+tb.val2send
+@420
+tb.i
+@200
+-
+@28
+tb.clk_fast
+tb.data_rec
+@29
+[color] 7
+tb.data_valid_d
+@420
+tb.rec_i
+@200
+-
+@420
+tb.k
+@28
+tb.sync.clk_i
+tb.rst_ni
+tb.sync.data_i
+tb.sync.data_sync_o
+[pattern_trace] 1
+[pattern_trace] 0
