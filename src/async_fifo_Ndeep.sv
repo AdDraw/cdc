@@ -12,6 +12,9 @@
   - converted to GRAY and send with the use of 2FF sync over to the other clock domain
   - In this domain to simplify EMPTY | FULL flag comb logic convert gray back to BINARY
   - use binary with binary for empty and full
+
+  cA_ - signal is driven from the CLKA domain
+  cB_ - signal is driven from the CLKB domain
 */
 `timescale 1ns/1ps
 
@@ -22,14 +25,14 @@ module async_fifo_Ndeep #(
     // WRITE PORT CLKA
     input                     clkA_i,
     input                     cA_rst_ni,
-    input                     cA_wea_i,
-    input  [DATA_WIDTH-1 : 0] cA_dina_i,
+    input                     cA_we_i,
+    input  [DATA_WIDTH-1 : 0] cA_din_i,
     output                    cA_wrdy_o,
     // READ PORT CLKB
     input                     clkB_i,
     input                     cB_rst_ni,
-    input                     cB_reb_i,
-    output [DATA_WIDTH-1 : 0] cB_doutb_o,
+    input                     cB_re_i,
+    output [DATA_WIDTH-1 : 0] cB_dout_o,
     output                    cB_rrdy_o
   );
   localparam BUFFER_DEPTH = 2**BUFFER_DEPTH_POWER;
@@ -39,10 +42,12 @@ module async_fifo_Ndeep #(
 
   // CLK A DOMAIN
   logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_wr_ptr;
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_rd_ptr_gray;
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_rd_ptr_gray_sync;
   logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_rd_ptr_bin;
 
   logic cA_full  = (cA_wr_ptr + 1'b1 == cA_rd_ptr_bin) ? 1'b1 : 1'b0;
+
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
 
   synchronizer_2ff #(
     .DATA_WIDTH(DATA_WIDTH)
@@ -50,13 +55,13 @@ module async_fifo_Ndeep #(
     .clk_i(clkA_i),
     .rst_ni(cA_rst_ni),
     .data_i(cB_rd_ptr_gray),
-    .data_sync_o(cA_rd_ptr_gray)
+    .data_sync_o(cA_rd_ptr_gray_sync)
   );
 
   gray2bin #(
     .DATA_WIDTH($clog2(BUFFER_DEPTH))
   ) rd_ptr_gray2bin (
-    .gray_i(cA_rd_ptr_gray),
+    .gray_i(cA_rd_ptr_gray_sync),
     .bin_o(cA_rd_ptr_bin)
   );
 
@@ -65,32 +70,36 @@ module async_fifo_Ndeep #(
       cA_wr_ptr <= 0;
     end
     else begin
-      if (cA_wea_i & ~cA_full) begin
-        fifo[cA_wr_ptr] <= cA_dina_i;
+      if (cA_we_i & ~cA_full) begin
+        fifo[cA_wr_ptr] <= cA_din_i;
         cA_wr_ptr       <= cA_wr_ptr + 1'b1;
       end
     end
   end
 
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
 
   //--------------- CLOCK DOMAIN BORDER -----------------
   // CLKB DOMAIN
 
-  logic [DATA_WIDTH-1:0]             cB_doutb;
+  logic [DATA_WIDTH-1:0]             cB_dout;
   logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_rd_ptr;
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_wr_ptr_gray; // driven by CLKA
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_wr_ptr_gray_sync; // driven by CLKA
   logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_wr_ptr_bin;
+
+  logic cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
+
+  // SEND RD PTR as GRAY
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
 
   // READ WHEN NOT EMPTY
   always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
     if (!cB_rst_ni) begin
       cB_rd_ptr <= 0;
-      cB_doutb  <= 0;
+      cB_dout   <= 0;
     end
     else begin
-      if (cB_reb_i & ~cB_empty) begin
-        cB_doutb  <= fifo[cB_rd_ptr];
+      if (cB_re_i & ~cB_empty) begin
+        cB_dout   <= fifo[cB_rd_ptr];
         cB_rd_ptr <= cB_rd_ptr + 1'b1;
       end
     end
@@ -103,23 +112,17 @@ module async_fifo_Ndeep #(
     .clk_i(clkB_i),
     .rst_ni(cB_rst_ni),
     .data_i(cA_wr_ptr_gray),
-    .data_sync_o(cB_wr_ptr_gray)
+    .data_sync_o(cB_wr_ptr_gray_sync)
   );
   gray2bin #(
     .DATA_WIDTH($clog2(BUFFER_DEPTH))
   ) wr_ptr_gray2bin (
-    .gray_i(cB_wr_ptr_gray),
+    .gray_i(cB_wr_ptr_gray_sync),
     .bin_o(cB_wr_ptr_bin)
   );
 
-  // SEND RD PTR as GRAY
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
-
-  // SET EMPTY
-  logic cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
-
   assign cA_wrdy_o = ~cA_full;
   assign cB_rrdy_o = ~cB_empty;
-  assign cB_doutb_o = cB_doutb;
+  assign cB_dout_o = cB_dout;
 
 endmodule

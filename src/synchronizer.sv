@@ -4,15 +4,14 @@
     IF DATA_WIDTH > 1 then it should encoded in GRAY
 */
 
-module synchronizer_2ff
-  #(
+module synchronizer_2ff #(
     parameter DATA_WIDTH = 1
-   ) (
+  ) (
     input clk_i,
     input rst_ni,
     input  [DATA_WIDTH-1:0] data_i,
     output [DATA_WIDTH-1:0] data_sync_o
-   );
+  );
 
   logic [DATA_WIDTH-1:0] sync_2ff [2];
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -28,7 +27,7 @@ module synchronizer_2ff
 
   assign data_sync_o = sync_2ff[1];
 
-endmodule: synchronizer_2ff
+endmodule
 
 
 
