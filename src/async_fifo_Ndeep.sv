@@ -8,95 +8,90 @@
   # read from the register using clkB if register is not empty
   
   Asynchronous Circular buffer N words deep:
-  - wr_ptr & rd_ptr in binary
+  - wr_ptr & clkb_rd_ptr in binary
   - converted to GRAY and send with the use of 2FF sync over to the other clock domain
   - In this domain to simplify EMPTY | FULL flag comb logic convert gray back to BINARY
   - use binary with binary for empty and full
 */
 `timescale 1ns/1ps
-`include "synchronizer.sv"
 
 module async_fifo_Ndeep #(
-    parameter DATA_WIDTH   = 8,
-    parameter BUFFER_DEPTH = 4
+    parameter DATA_WIDTH         = 8,
+    parameter BUFFER_DEPTH_POWER = 2
   )(
-    // WRITE PORT
-    input clka_i,
-    input wrst_ni,
-    input wea_i,
-    input [DATA_WIDTH-1 : 0] dina_i,
-    output wrdy_o,
-    // READ PORT
-    input clkb_i,
-    input rrst_ni,
-    input reb_i,
-    output [DATA_WIDTH-1 : 0] doutb_o,
-    output rrdy_o
+    // WRITE PORT CLKA
+    input                     clkA_i,
+    input                     cA_rst_ni,
+    input                     cA_wea_i,
+    input  [DATA_WIDTH-1 : 0] cA_dina_i,
+    output                    cA_wrdy_o,
+    // READ PORT CLKB
+    input                     clkB_i,
+    input                     cB_rst_ni,
+    input                     cB_reb_i,
+    output [DATA_WIDTH-1 : 0] cB_doutb_o,
+    output                    cB_rrdy_o
   );
+  localparam BUFFER_DEPTH = 2**BUFFER_DEPTH_POWER;
 
-  logic [DATA_WIDTH-1 :0 ] fifo [BUFFER_DEPTH];
-  logic [DATA_WIDTH-1:0] doutb;
+  // INTER DOMAIN FIFO
+  logic [DATA_WIDTH-1 : 0 ] fifo [BUFFER_DEPTH];
 
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr;
+  // CLK A DOMAIN
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_wr_ptr;
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_rd_ptr_gray;
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_rd_ptr_bin;
 
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] rd_ptr_gray_clkA_synced;
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] rd_ptr_bin_clkA_synced;
-
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr_gray_clkA_synced_w;
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr_bin_clkA_synced_w;
-
-  logic full  = (wr_ptr + 1'b1 == rd_ptr_clkA_synced) ? 1'b1 : 1'b0;
-
-  // SEND RD PTR as GRAY
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] rd_ptr_gray = rd_ptr ^ (rd_ptr >> 1);
+  logic cA_full  = (cA_wr_ptr + 1'b1 == cA_rd_ptr_bin) ? 1'b1 : 1'b0;
 
   synchronizer_2ff #(
-                     .DATA_WIDTH(DATA_WIDTH)
-                   ) sync_rd_ptr (
-                     .clk_i(clka_i),
-                     .rst_ni(wrst_ni),
-                     .data_i(rd_ptr_gray),
-                     .data_sync_o(rd_ptr_gray_clkA_synced)
-                   );
+    .DATA_WIDTH(DATA_WIDTH)
+  ) sync_rd_ptr (
+    .clk_i(clkA_i),
+    .rst_ni(cA_rst_ni),
+    .data_i(cB_rd_ptr_gray),
+    .data_sync_o(cA_rd_ptr_gray)
+  );
 
   gray2bin #(
-             .DATA_WIDTH($clog2(BUFFER_DEPTH))
-           ) rd_ptr_gray2bin (
-             .gray_i(rd_ptr_gray_clkA_synced),
-             .bin_o(rd_ptr_bin_clkA_synced)
-           );
+    .DATA_WIDTH($clog2(BUFFER_DEPTH))
+  ) rd_ptr_gray2bin (
+    .gray_i(cA_rd_ptr_gray),
+    .bin_o(cA_rd_ptr_bin)
+  );
 
-  always_ff @( posedge clka_i or negedge wrst_ni ) begin
-    if (!wrst_ni) begin
-      wr_ptr <= 0;
+  always_ff @( posedge clkA_i or negedge cA_rst_ni ) begin
+    if (!cA_rst_ni) begin
+      cA_wr_ptr <= 0;
     end
     else begin
-      if (wea_i & ~full) begin
-        fifo[wr_ptr] <= dina_i;
-        wr_ptr       <= wr_ptr + 1'b1;
+      if (cA_wea_i & ~cA_full) begin
+        fifo[cA_wr_ptr] <= cA_dina_i;
+        cA_wr_ptr       <= cA_wr_ptr + 1'b1;
       end
     end
   end
 
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr_gray = wr_ptr ^ (wr_ptr >> 1);
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
 
   //--------------- CLOCK DOMAIN BORDER -----------------
+  // CLKB DOMAIN
 
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] rd_ptr;
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr_gray_clkB_synced; // send over CLOCK border
-  logic [$clog2(BUFFER_DEPTH)-1 : 0] wr_ptr_bin_clkB_synced;
+  logic [DATA_WIDTH-1:0]             cB_doutb;
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_rd_ptr;
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_wr_ptr_gray; // driven by CLKA
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_wr_ptr_bin;
 
   // READ WHEN NOT EMPTY
-  always_ff @( posedge clkb_i or negedge rrst_ni ) begin
-    if (!rrst_ni) begin
-      rd_ptr <= 0;
-      wr_ptr_clkB_synced1 <= 0;
-      wr_ptr_clkB_synced2 <= 0;
+  always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
+    if (!cB_rst_ni) begin
+      cB_rd_ptr <= 0;
+      cB_doutb  <= 0;
     end
     else begin
-      if (reb_i & ~empty) begin
-        doutb  <= fifo[rd_ptr];
-        rd_ptr <= rd_ptr + 1'b1;
+      if (cB_reb_i & ~cB_empty) begin
+        cB_doutb  <= fifo[cB_rd_ptr];
+        cB_rd_ptr <= cB_rd_ptr + 1'b1;
       end
     end
   end
@@ -105,23 +100,26 @@ module async_fifo_Ndeep #(
   synchronizer_2ff #(
     .DATA_WIDTH(DATA_WIDTH)
   ) sync_wr_ptr (
-    .clk_i(clkb_i),
-    .rst_ni(rrst_ni),
-    .data_i(wr_ptr_gray),
-    .data_sync_o(wr_ptr_gray_clkA_synced_w)
+    .clk_i(clkB_i),
+    .rst_ni(cB_rst_ni),
+    .data_i(cA_wr_ptr_gray),
+    .data_sync_o(cB_wr_ptr_gray)
   );
   gray2bin #(
     .DATA_WIDTH($clog2(BUFFER_DEPTH))
   ) wr_ptr_gray2bin (
-    .gray_i(wr_ptr_gray_clkB_synced),
-    .bin_o(wr_ptr_bin_clkB_synced)
+    .gray_i(cB_wr_ptr_gray),
+    .bin_o(cB_wr_ptr_bin)
   );
 
-  // SET EMPTY
-  logic empty = (wr_ptr_bin_clkB_synced == rd_ptr) ? 1'b1: 1'b0;
+  // SEND RD PTR as GRAY
+  logic [$clog2(BUFFER_DEPTH)-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
 
-  assign wrdy_o = ~full;
-  assign rrdy_o = ~empty;
-  assign doutb_o = doutb;
+  // SET EMPTY
+  logic cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
+
+  assign cA_wrdy_o = ~cA_full;
+  assign cB_rrdy_o = ~cB_empty;
+  assign cB_doutb_o = cB_doutb;
 
 endmodule

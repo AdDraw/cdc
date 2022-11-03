@@ -4,7 +4,7 @@
   Writing using CLKA
   Reading done using CLKB
   GRAY encoded ptr -> not needed if you have a 2 deep fifo (not enough addresses)
-  # write the data into the register if this register is not full
+  # write the data into the register if this register is not cA_full
   # read from the register using clkB if register is not empty
  
   Simple 2 deep circular buffer with asynchronous writing and reading
@@ -14,65 +14,63 @@ module async_fifo_2deep #(
     parameter DATA_WIDTH = 8
   )(
     // WRITE PORT
-    input clka_i,
-    input wrst_ni,
-    input wea_i,
-    input [DATA_WIDTH-1 : 0] dina_i,
-    output wrdy_o,
+    input                     clkA_i,
+    input                     cA_rst_ni,
+    input                     cA_wea_i,
+    input  [DATA_WIDTH-1 : 0] cA_dina_i,
+    output                    cA_wrdy_o,
     // READ PORT
-    input clkb_i,
-    input rrst_ni,
-    input reb_i,
-    output [DATA_WIDTH-1 : 0] doutb_o,
-    output rrdy_o
+    input                     clkB_i,
+    input                     cB_rst_ni,
+    input                     cB_reb_i,
+    output [DATA_WIDTH-1 : 0] cB_doutb_o,
+    output                    cB_rrdy_o
   );
 
-  logic [DATA_WIDTH-1 :0 ] fifo [2];
-  logic [DATA_WIDTH-1:0] doutb;
+  logic [DATA_WIDTH-1 :0 ] mem [2];
 
-  logic wr_ptr;
-  logic rd_ptr_clkA_synced1, rd_ptr_clkA_synced2;
-  logic full  = ~(wr_ptr ^ rd_ptr_clkA_synced2);
+  logic       cA_wr_ptr;
+  logic [1:0] cA_rd_ptr_sync;
+  logic       cA_full  = ~(cA_wr_ptr ^ cA_rd_ptr_sync[1]);
 
-  always_ff @( posedge clka_i or negedge wrst_ni ) begin
-    if (!wrst_ni) begin
-      wr_ptr <= 0;
-      rd_ptr_clkA_synced1 <= 0;
-      rd_ptr_clkA_synced2 <= 0;
+  always_ff @( posedge clkA_i or negedge cA_rst_ni ) begin
+    if (!cA_rst_ni) begin
+      cA_wr_ptr <= 1'b0;
+      cA_rd_ptr_sync <= 2'b00;
     end
     else begin
-      rd_ptr_clkA_synced1 <= rd_ptr;
-      rd_ptr_clkA_synced2 <= rd_ptr_clkA_synced1;
-      if (wea_i & ~full) begin
-        fifo[wr_ptr] <= dina_i;
-        wr_ptr       <= wr_ptr ^ wea_i;
+      cA_rd_ptr_sync <= {cB_rd_ptr, cA_rd_ptr_sync[0]};
+      if (cA_wea_i & ~cA_full) begin
+        mem[cA_wr_ptr] <= cA_dina_i;
+        cA_wr_ptr       <= cA_wr_ptr ^ cA_wea_i;
       end
     end
   end
 
   //--------------- CLOCK DOMAIN BORDER -----------------
 
-  logic rd_ptr;
-  logic wr_ptr_clkB_synced1, wr_ptr_clkB_synced2;
-  logic empty = wr_ptr_clkB_synced2 ^ rd_ptr;
-  always_ff @( posedge clkb_i or negedge rrst_ni ) begin
-    if (!rrst_ni) begin
-      rd_ptr <= 0;
-      wr_ptr_clkB_synced1 <= 0;
-      wr_ptr_clkB_synced2 <= 0;
+  logic [DATA_WIDTH-1:0]  cB_doutb;
+
+  logic       cB_rd_ptr;
+  logic [1:0] cB_wr_ptr_sync;
+  logic       cB_empty = cB_wr_ptr_sync[1] ^ cB_rd_ptr;
+
+  always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
+    if (!cB_rst_ni) begin
+      cB_rd_ptr      <= 0;
+      cB_wr_ptr_sync <= 2'b00;
     end
     else begin
-      wr_ptr_clkB_synced1 <= wr_ptr;
-      wr_ptr_clkB_synced2 <= wr_ptr_clkB_synced1;
-      if (reb_i & ~empty) begin
-        doutb  <= fifo[rd_ptr];
-        rd_ptr <= rd_ptr ^ reb_i;
+      cB_wr_ptr_sync <= {cA_wr_ptr, cB_wr_ptr_sync[0]};
+      if (cB_reb_i & ~cB_empty) begin
+        cB_doutb  <= mem[cB_rd_ptr];
+        cB_rd_ptr <= cB_rd_ptr ^ cB_reb_i;
       end
     end
   end
 
-  assign wrdy_o = ~full;
-  assign rrdy_o = ~empty;
-  assign doutb_o = doutb;
+  assign cA_wrdy_o = ~cA_full;
+  assign cB_rrdy_o = ~cB_empty;
+  assign cB_doutb_o = cB_doutb;
 
 endmodule
