@@ -52,7 +52,7 @@ module tb;
         delay = $urandom_range(0, CLK_FAST_PERIOD);
         val2send = $urandom_range(0,1);
         input_arr[i] = val2send;
-        $display("%t Current Delay %0d; Data2Send %0b", $time, delay, val2send);
+        $display("%0t ns: Current Delay %0d; Data2Send %0b", $time, delay, val2send);
         #(delay) data_send = val2send;
         data_valid = 1'b1;
         #(CLK_FAST_PERIOD*1.25) data_valid = 1'b0;
@@ -79,7 +79,7 @@ module tb;
           if (cnt_en) begin
             cnt <= cnt + 1'b1;
             if (cnt == 2'b10) begin
-              $display("%t DataRec %0b", $time, data_rec);
+              $display("%0t ns: DataRec %0b", $time, data_rec);
               rec_arr[rec_i] <= data_rec;
               rec_i          <= rec_i + 1'b1;
               cnt_en <= 1'b0;
@@ -96,12 +96,12 @@ module tb;
       rst_ni = 1'b0;
       #200 rst_ni = 1'b1;
       while (i < 100) #300;
-      $display("It was nice meeting you, finishing....");
+      $display("SIM FINISH....");
       $display("I = %0d; REC_I = %0d", i, rec_i);
-      for (int j = 0; j < 100; j = j + 1) begin
-        $display("%0d: %0d <-> %0d", j, input_arr[j], rec_arr[j]);
+      for (int j = 0; j < 100; j = j + 1) begin 
         if (input_arr[j] != rec_arr[j]) begin
           $error("Found a mismatch!");
+          $display("%0d: %0d <-> %0d", j, input_arr[j], rec_arr[j]);
           $finish(1);
         end
       end
