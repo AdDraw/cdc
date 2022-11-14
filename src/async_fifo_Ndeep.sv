@@ -41,16 +41,16 @@ module async_fifo_Ndeep #(
   logic [DATA_WIDTH-1 : 0 ] fifo [BufferDepth];
 
   // CLK A DOMAIN
-  logic [$clog2(BufferDepth)-1 : 0] cA_wr_ptr;
-  logic [$clog2(BufferDepth)-1 : 0] cA_rd_ptr_gray_sync;
-  logic [$clog2(BufferDepth)-1 : 0] cA_rd_ptr_bin;
+  logic [BUFFER_DEPTH_POWER-1 : 0] cA_wr_ptr;
+  logic [BUFFER_DEPTH_POWER-1 : 0] cA_rd_ptr_gray_sync;
+  logic [BUFFER_DEPTH_POWER-1 : 0] cA_rd_ptr_bin;
 
   logic cA_full  = (cA_wr_ptr + 1'b1 == cA_rd_ptr_bin) ? 1'b1 : 1'b0;
 
-  logic [$clog2(BufferDepth)-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
+  logic [BUFFER_DEPTH_POWER-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
 
   synchronizer_2ff #(
-    .DATA_WIDTH(DATA_WIDTH)
+    .DATA_WIDTH(BUFFER_DEPTH_POWER)
   ) sync_rd_ptr (
     .clk_i(clkA_i),
     .rst_ni(cA_rst_ni),
@@ -59,7 +59,7 @@ module async_fifo_Ndeep #(
   );
 
   gray2bin #(
-    .DATA_WIDTH($clog2(BufferDepth))
+    .DATA_WIDTH(BUFFER_DEPTH_POWER)
   ) rd_ptr_gray2bin (
     .gray_i(cA_rd_ptr_gray_sync),
     .bin_o(cA_rd_ptr_bin)
@@ -82,14 +82,14 @@ module async_fifo_Ndeep #(
   // CLKB DOMAIN
 
   logic [DATA_WIDTH-1:0]             cB_dout;
-  logic [$clog2(BufferDepth)-1 : 0] cB_rd_ptr;
-  logic [$clog2(BufferDepth)-1 : 0] cB_wr_ptr_gray_sync; // driven by CLKA
-  logic [$clog2(BufferDepth)-1 : 0] cB_wr_ptr_bin;
+  logic [BUFFER_DEPTH_POWER-1 : 0] cB_rd_ptr;
+  logic [BUFFER_DEPTH_POWER-1 : 0] cB_wr_ptr_gray_sync; // driven by CLKA
+  logic [BUFFER_DEPTH_POWER-1 : 0] cB_wr_ptr_bin;
 
   logic cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
 
   // SEND RD PTR as GRAY
-  logic [$clog2(BufferDepth)-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
+  logic [BUFFER_DEPTH_POWER-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
 
   // READ WHEN NOT EMPTY
   always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
@@ -107,7 +107,7 @@ module async_fifo_Ndeep #(
 
   // receive WR_PTR
   synchronizer_2ff #(
-    .DATA_WIDTH(DATA_WIDTH)
+    .DATA_WIDTH(BUFFER_DEPTH_POWER)
   ) sync_wr_ptr (
     .clk_i(clkB_i),
     .rst_ni(cB_rst_ni),
@@ -115,7 +115,7 @@ module async_fifo_Ndeep #(
     .data_sync_o(cB_wr_ptr_gray_sync)
   );
   gray2bin #(
-    .DATA_WIDTH($clog2(BufferDepth))
+    .DATA_WIDTH(BUFFER_DEPTH_POWER)
   ) wr_ptr_gray2bin (
     .gray_i(cB_wr_ptr_gray_sync),
     .bin_o(cB_wr_ptr_bin)
