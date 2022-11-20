@@ -45,9 +45,9 @@ module async_fifo_Ndeep #(
   logic [BUFFER_DEPTH_POWER-1 : 0] cA_rd_ptr_gray_sync;
   logic [BUFFER_DEPTH_POWER-1 : 0] cA_rd_ptr_bin;
 
-  logic cA_full  = (cA_wr_ptr + 1'b1 == cA_rd_ptr_bin) ? 1'b1 : 1'b0;
+  wire cA_full  = (cA_wr_ptr + 1'b1 == cA_rd_ptr_bin) ? 1'b1 : 1'b0;
 
-  logic [BUFFER_DEPTH_POWER-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
+  wire [BUFFER_DEPTH_POWER-1 : 0] cA_wr_ptr_gray = cA_wr_ptr ^ (cA_wr_ptr >> 1);
 
   synchronizer_2ff #(
     .DATA_WIDTH(BUFFER_DEPTH_POWER)
@@ -66,7 +66,7 @@ module async_fifo_Ndeep #(
   );
 
   always_ff @( posedge clkA_i or negedge cA_rst_ni ) begin
-    if (!cA_rst_ni) begin
+    if (~cA_rst_ni) begin
       cA_wr_ptr <= 0;
     end
     else begin
@@ -81,19 +81,19 @@ module async_fifo_Ndeep #(
   //--------------- CLOCK DOMAIN BORDER -----------------
   // CLKB DOMAIN
 
-  logic [DATA_WIDTH-1:0]             cB_dout;
+  logic [DATA_WIDTH-1:0]           cB_dout;
   logic [BUFFER_DEPTH_POWER-1 : 0] cB_rd_ptr;
   logic [BUFFER_DEPTH_POWER-1 : 0] cB_wr_ptr_gray_sync; // driven by CLKA
   logic [BUFFER_DEPTH_POWER-1 : 0] cB_wr_ptr_bin;
 
-  logic cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
+  wire cB_empty = (cB_wr_ptr_bin == cB_rd_ptr) ? 1'b1: 1'b0;
 
   // SEND RD PTR as GRAY
-  logic [BUFFER_DEPTH_POWER-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
+  wire [BUFFER_DEPTH_POWER-1 : 0] cB_rd_ptr_gray = cB_rd_ptr ^ (cB_rd_ptr >> 1);
 
   // READ WHEN NOT EMPTY
   always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
-    if (!cB_rst_ni) begin
+    if (~cB_rst_ni) begin
       cB_rd_ptr <= 0;
       cB_dout   <= 0;
     end
@@ -124,5 +124,11 @@ module async_fifo_Ndeep #(
   assign cA_wrdy_o = ~cA_full;
   assign cB_rrdy_o = ~cB_empty;
   assign cB_dout_o = cB_dout;
+
+   // START & FINISH
+  initial begin
+    $dumpvars(0, async_fifo_Ndeep);
+  end
+
 
 endmodule
