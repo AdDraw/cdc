@@ -1,5 +1,5 @@
 # Adam Drawc 2022
-# simple makefile for the cocotb 
+# simple makefile for the cocotb
 # (VERILOG_SOURCES are all files that are inside src/)
 
 SRC_PATH=$(shell git rev-parse --show-toplevel)/src/
@@ -11,8 +11,8 @@ SIM ?= icarus
 MODULE := test
 TOPLEVEL=async_fifo_Ndeep
 TOPLEVEL_LANG=verilog
-COCOTB_HDL_TIMEUNIT=1us
-COCOTB_HDL_TIMEPRECISION=1us
+COCOTB_HDL_TIMEUNIT=1ns
+COCOTB_HDL_TIMEPRECISION=1ps
 
 DATA_WIDTH         ?= 8 # FIFO_WORD_WIDTH
 BUFFER_DEPTH_POWER ?= 2 # fifo_size = 2**BUFFER_DEPTH_POWER
