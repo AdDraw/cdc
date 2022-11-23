@@ -1,0 +1,8 @@
+*.vvp
+*.vcd
+*.xml
+sim_build
+__pycache__
+*.pytest*
+*.out
+*.log
