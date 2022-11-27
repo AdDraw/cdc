@@ -5,7 +5,8 @@ import numpy as np
 from cocotb.clock import Clock
 from cocotb.handle import SimHandleBase
 from cocotb.regression import TestFactory
-from cocotb.triggers import ClockCycles, FallingEdge, ReadOnly, ReadWrite, RisingEdge
+from cocotb.triggers import (ClockCycles, FallingEdge, ReadOnly, ReadWrite,
+                             RisingEdge, Timer)
 
 
 class Interface:
@@ -105,17 +106,69 @@ class asyncFTB:
         cocotb.log.info("Reset Done!")
 
 
-async def test(dut, clkA_period, clkB_period):
-    # Check test environment
-    if clkA_period % 2 or clkB_period % 2:
-        raise ValueError(f"Periods non-divisible by 2, {[clkA_period, clkB_period]}")
+async def clk_gen(
+    clk_sig,
+    period: int = 10,
+    init_phase_offset: int = 0,
+    duty_cycle: float = 0.5,
+    dc_jitter: float = 0.1,
+    period_jitter: float = 0.1,
+    start_val: bool = True,
+):
 
+    assert 0 < duty_cycle < 1
+    assert 0 <= dc_jitter <= 0.2
+    assert 0 <= period_jitter <= 0.2
+
+    initial_phase_offset = init_phase_offset
+    clk_val = start_val
+
+    clk_sig.setimmediatevalue(not clk_val)  # Stage 0
+    if initial_phase_offset:
+        await Timer(initial_phase_offset, "ps")  # Phase offset
+
+    while True:
+        p_jitt = random.gauss(1, period_jitter / 2)
+        dc_jitt = random.gauss(1, dc_jitter / 2)
+        period_jittered = period * p_jitt
+        duty_cycle_jittered = duty_cycle * dc_jitt
+        high_p = period_jittered * duty_cycle_jittered
+        low_p = period_jittered * (1 - duty_cycle_jittered)
+        high_p_round = round(high_p, 3)
+        low_p_round = round(low_p, 3)
+
+        clk_sig.setimmediatevalue(clk_val)  # Stage 0
+        clk_val = not clk_val
+        await Timer(time=int(high_p_round * 1000), units="ps")
+        clk_sig.setimmediatevalue(clk_val)  # Stage 1
+        clk_val = not clk_val
+        await Timer(time=int(low_p_round * 1000), units="ps")
+
+
+async def test(
+    dut,
+    clkA_period: int,
+    clkB_period: int,
+    clkB_offset: int,
+    simple_clocks: bool = False,
+):
     # Init TB class
     afifo_tb = asyncFTB(dut)
 
     # Generate clocks
-    cocotb.start_soon(Clock(dut.clkA_i, clkA_period).start())
-    cocotb.start_soon(Clock(dut.clkB_i, clkB_period).start())
+    if simple_clocks:
+        cocotb.start_soon(Clock(dut.clkA_i, clkA_period, "ns").start())
+        await Timer(clkB_offset, "ps")
+        cocotb.start_soon(Clock(dut.clkB_i, clkB_period, "ns").start())
+    else:
+        cocotb.start_soon(
+            clk_gen(dut.clkA_i, clkA_period, period_jitter=0.1, dc_jitter=0)
+        )
+        cocotb.start_soon(
+            clk_gen(
+                dut.clkB_i, clkB_period, clkB_offset, period_jitter=0.1, dc_jitter=0
+            )
+        )
 
     # Reset
     await ClockCycles(dut.clkB_i, 10)
@@ -139,11 +192,14 @@ async def test(dut, clkA_period, clkB_period):
         raise ValueError("Not every value has matched!")
 
 
-period_n = 5
-clkA_periods = [random.randrange(2, 20, 2) for x in range(period_n)]
-clkB_periods = [random.randrange(2, 20, 2) for x in range(period_n)]
+period_n = 2
+clkA_periods = [random.randrange(1, 20, 1) for x in range(period_n)]
+clkB_periods = [random.randrange(1, 10, 1) for x in range(period_n)]
+clk_periods = np.concatenate([np.array(clkA_periods), np.array(clkB_periods)])
+offsets = [random.randrange(1, 3000, 1) for x in range(len(clk_periods))]
 
 tf = TestFactory(test)
-tf.add_option("clkA_period", clkA_periods)
-tf.add_option("clkB_period", clkB_periods)
+tf.add_option("clkA_period", clk_periods)
+tf.add_option("clkB_period", clk_periods)
+tf.add_option("clkB_offset", offsets)
 tf.generate_tests("generic test")
