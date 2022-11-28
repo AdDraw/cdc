@@ -3,10 +3,10 @@ import random
 import cocotb
 import numpy as np
 from cocotb.clock import Clock
-from cocotb.handle import SimHandleBase
 from cocotb.regression import TestFactory
-from cocotb.triggers import (ClockCycles, FallingEdge, ReadOnly, ReadWrite,
-                             RisingEdge, Timer)
+from cocotb.triggers import ClockCycles, FallingEdge, ReadOnly, RisingEdge, Timer
+
+import os
 
 
 class Interface:
@@ -84,7 +84,6 @@ class asyncFTB:
         self.driver = Driver(self.wif)
         self.reader = Receiver(self.rif)
         self.init_ports()
-        cocotb.start_soon(self.reader.read_constantly())
 
     def init_ports(self):
         self.dut.cA_din_i.setimmediatevalue(0)
@@ -106,43 +105,60 @@ class asyncFTB:
         cocotb.log.info("Reset Done!")
 
 
-async def clk_gen(
-    clk_sig,
-    period: int = 10,
-    init_phase_offset: int = 0,
-    duty_cycle: float = 0.5,
-    dc_jitter: float = 0.1,
-    period_jitter: float = 0.1,
-    start_val: bool = True,
-):
+class CustomClk(Clock):
+    def __init__(
+        self,
+        signal,
+        period,
+        init_phase: int = 0,
+        duty_cycle: float = 0.5,
+        dc_jitter: float = 0,
+        period_jitter: float = 0,
+    ):
+        assert 0 < duty_cycle < 1
+        assert 0 <= dc_jitter <= 0.2
+        assert 0 <= period_jitter <= 0.2
+        self.signal = signal
+        self.period = period
+        self.init_phase = init_phase
+        self.duty_cycle = duty_cycle
+        self.dc_jitter = dc_jitter
+        self.period_jitter = period_jitter
 
-    assert 0 < duty_cycle < 1
-    assert 0 <= dc_jitter <= 0.2
-    assert 0 <= period_jitter <= 0.2
+    async def start(self, start_high: int = True):
+        st0_val = start_high
+        st1_val = not start_high
 
-    initial_phase_offset = init_phase_offset
-    clk_val = start_val
+        # Phase Shift impact on the starting_val
+        ph_switch = self.period * self.duty_cycle
+        ph_arg = self.period * ((self.init_phase / 360) % 1)
+        if ph_arg >= ph_switch:
+            self.signal.setimmediatevalue(st1_val)
+            ph_wait = int(round(self.period - ph_arg, 3) * 1000)
+            await Timer(ph_wait, units="ps")
+        else:
+            self.signal.setimmediatevalue(st0_val)
+            p_st0 = int(round(ph_switch - ph_arg, 3) * 1000)
+            p_st1 = int(round(self.period - ph_switch, 3) * 1000)
+            await Timer(p_st0, units="ps")
+            self.signal.setimmediatevalue(st1_val)
+            await Timer(p_st1, units="ps")
 
-    clk_sig.setimmediatevalue(not clk_val)  # Stage 0
-    if initial_phase_offset:
-        await Timer(initial_phase_offset, "ps")  # Phase offset
-
-    while True:
-        p_jitt = random.gauss(1, period_jitter / 2)
-        dc_jitt = random.gauss(1, dc_jitter / 2)
-        period_jittered = period * p_jitt
-        duty_cycle_jittered = duty_cycle * dc_jitt
-        high_p = period_jittered * duty_cycle_jittered
-        low_p = period_jittered * (1 - duty_cycle_jittered)
-        high_p_round = round(high_p, 3)
-        low_p_round = round(low_p, 3)
-
-        clk_sig.setimmediatevalue(clk_val)  # Stage 0
-        clk_val = not clk_val
-        await Timer(time=int(high_p_round * 1000), units="ps")
-        clk_sig.setimmediatevalue(clk_val)  # Stage 1
-        clk_val = not clk_val
-        await Timer(time=int(low_p_round * 1000), units="ps")
+        while True:
+            # calc new period + duty_cycle
+            p_jitt = random.gauss(1, self.period_jitter / 2)
+            dc_jitt = random.gauss(1, self.dc_jitter / 2)
+            period_jittered = self.period * p_jitt
+            duty_cycle_jittered = self.duty_cycle * dc_jitt
+            high_p = period_jittered * duty_cycle_jittered
+            low_p = period_jittered * (1 - duty_cycle_jittered)
+            st0_round = round(high_p, 3)
+            st1_round = round(low_p, 3)
+            # apply
+            self.signal.setimmediatevalue(st0_val)  # Stage 0
+            await Timer(time=int(st0_round * 1000), units="ps")
+            self.signal.setimmediatevalue(st1_val)  # Stage 1
+            await Timer(time=int(st1_round * 1000), units="ps")
 
 
 async def test(
@@ -154,6 +170,7 @@ async def test(
 ):
     # Init TB class
     afifo_tb = asyncFTB(dut)
+    cocotb.start_soon(afifo_tb.reader.read_constantly())
 
     # Generate clocks
     if simple_clocks:
@@ -162,12 +179,18 @@ async def test(
         cocotb.start_soon(Clock(dut.clkB_i, clkB_period, "ns").start())
     else:
         cocotb.start_soon(
-            clk_gen(dut.clkA_i, clkA_period, period_jitter=0.1, dc_jitter=0)
+            CustomClk(
+                dut.clkA_i, clkA_period, dc_jitter=0.05, period_jitter=0.2
+            ).start()
         )
         cocotb.start_soon(
-            clk_gen(
-                dut.clkB_i, clkB_period, clkB_offset, period_jitter=0.1, dc_jitter=0
-            )
+            CustomClk(
+                dut.clkB_i,
+                clkB_period,
+                init_phase=clkB_offset,
+                dc_jitter=0.05,
+                period_jitter=0.2,
+            ).start()
         )
 
     # Reset
@@ -183,7 +206,79 @@ async def test(
         await afifo_tb.driver.write(int(val))
 
     # Give reader the time to read last value
+    rif = afifo_tb.rif
+    while rif.rrdy.value == 1:
+        await rif.redge()
+    await ClockCycles(rif.clk, 10)
+
+    # Verify correctness
+    if afifo_tb.check(inputs):
+        cocotb.log.info("Every value has matched!, test passed")
+    else:
+        raise ValueError("Not every value has matched!")
+
+
+@cocotb.test()
+async def full_test(
+    dut,
+    clkA_period: int = 5,
+    clkB_period: int = 20,
+    clkB_offset: int = 0,
+    simple_clocks: bool = False,
+):
+    # Init TB class
+    afifo_tb = asyncFTB(dut)
+
+    # Generate clocks
+    if simple_clocks:
+        cocotb.start_soon(Clock(dut.clkA_i, clkA_period, "ns").start())
+        await Timer(clkB_offset, "ps")
+        cocotb.start_soon(Clock(dut.clkB_i, clkB_period, "ns").start())
+    else:
+        cocotb.start_soon(
+            CustomClk(
+                dut.clkA_i, clkA_period, dc_jitter=0.05, period_jitter=0.2
+            ).start()
+        )
+        cocotb.start_soon(
+            CustomClk(
+                dut.clkB_i,
+                clkB_period,
+                init_phase=clkB_offset,
+                dc_jitter=0.05,
+                period_jitter=0.2,
+            ).start()
+        )
+
+    # Reset
     await ClockCycles(dut.clkB_i, 10)
+    await afifo_tb.reset()
+    await ClockCycles(dut.clkB_i, 10)
+
+    # Generate inputs to fully fill the FIFO
+    input_len = pow(2, dut.BUFFER_DEPTH_POWER.value) - 1
+    print(input_len)
+    inputs = afifo_tb.gen_inputs(8, input_len)
+
+    # Send N values to the DUT
+    for id, val in enumerate(inputs):
+        cocotb.log.info(f"{id} ,{val}")
+        await afifo_tb.driver.write(int(val))
+        await afifo_tb.wif.redge()
+        await ReadOnly()
+        if afifo_tb.wif.wrdy.value == 0:
+            break
+
+    cocotb.start_soon(afifo_tb.reader.read_constantly())
+    rif = afifo_tb.rif
+    while rif.rrdy.value == 1:
+        await rif.redge()
+    await ClockCycles(rif.clk, 10)
+
+    if len(afifo_tb.reader.received) != input_len:
+        raise ValueError(
+            f"Received less than what has been sent {len(afifo_tb.reader.received)} != {input_len}"
+        )
 
     # Verify correctness
     if afifo_tb.check(inputs):
@@ -193,13 +288,14 @@ async def test(
 
 
 period_n = 2
-clkA_periods = [random.randrange(1, 20, 1) for x in range(period_n)]
-clkB_periods = [random.randrange(1, 10, 1) for x in range(period_n)]
+offset_n = 2
+clkA_periods = [random.randrange(1, 50, 1) for x in range(period_n)]
+clkB_periods = [random.randrange(1, 5, 1) for x in range(period_n)]
 clk_periods = np.concatenate([np.array(clkA_periods), np.array(clkB_periods)])
-offsets = [random.randrange(1, 3000, 1) for x in range(len(clk_periods))]
+offsets = [random.randrange(0, 360, 1) for x in range(offset_n)]
 
-tf = TestFactory(test)
-tf.add_option("clkA_period", clk_periods)
-tf.add_option("clkB_period", clk_periods)
-tf.add_option("clkB_offset", offsets)
-tf.generate_tests("generic test")
+tf1 = TestFactory(test)
+tf1.add_option("clkA_period", clk_periods)
+tf1.add_option("clkB_period", clk_periods)
+tf1.add_option("clkB_offset", offsets)
+tf1.generate_tests("generic test")
