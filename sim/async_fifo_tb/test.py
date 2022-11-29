@@ -200,7 +200,12 @@ async def full_test(
     await ClockCycles(dut.clkB_i, 10)
 
     # Generate inputs to fully fill the FIFO
-    input_len = pow(2, dut.BUFFER_DEPTH_POWER.value) - 1
+    try:
+      input_len = pow(2, dut.BUFFER_DEPTH_POWER.value) - 1
+    except AttributeError:
+      # let's assume DEPTH_POWER = 1
+      input_len = pow(2, 1) - 1
+
     print(input_len)
     inputs = afifo_tb.gen_inputs(8, input_len)
 

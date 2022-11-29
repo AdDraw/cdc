@@ -6,12 +6,12 @@
   GRAY encoded ptr -> not needed if you have a 2 deep fifo (not enough addresses)
   # write the data into the register if this register is not cA_full
   # read from the register using clkB if register is not empty
- 
+
   Simple 2 deep circular buffer with asynchronous writing and reading
- 
+
   cA_ - signal is in CLKA domain
   cB_ - signal is in CLKB domain
- 
+
 */
 `timescale 1ns/1ps
 module async_fifo_2deep #(
@@ -30,12 +30,13 @@ module async_fifo_2deep #(
     output [DATA_WIDTH-1 : 0] cB_dout_o,
     output                    cB_rrdy_o
   );
-
+  // FIFO MEM
   logic [DATA_WIDTH-1 :0 ] mem [2];
 
-  logic       cA_wr_ptr;
-  logic [1:0] cA_rd_ptr_sync;
-  logic       cA_full  = ~(cA_wr_ptr ^ cA_rd_ptr_sync[1]);
+  // CLKA Domain (WritePart)
+  logic                    cA_wr_ptr;
+  logic [1:0]              cA_rd_ptr_sync;
+  wire                     cA_full  = cA_wr_ptr ^ cA_rd_ptr_sync[1];
 
   always_ff @( posedge clkA_i or negedge cA_rst_ni ) begin
     if (!cA_rst_ni) begin
@@ -52,12 +53,11 @@ module async_fifo_2deep #(
   end
 
   //--------------- CLOCK DOMAIN BORDER -----------------
-
+  // CLKB Domain (ReadPart)
   logic [DATA_WIDTH-1:0]  cB_dout;
-
-  logic       cB_rd_ptr;
-  logic [1:0] cB_wr_ptr_sync;
-  logic       cB_empty = cB_wr_ptr_sync[1] ^ cB_rd_ptr;
+  logic                   cB_rd_ptr;
+  logic [1:0]             cB_wr_ptr_sync;
+  wire                    cB_empty = ~(cB_wr_ptr_sync[1] ^ cB_rd_ptr);
 
   always_ff @( posedge clkB_i or negedge cB_rst_ni ) begin
     if (!cB_rst_ni) begin
@@ -76,5 +76,10 @@ module async_fifo_2deep #(
   assign cA_wrdy_o = ~cA_full;
   assign cB_rrdy_o = ~cB_empty;
   assign cB_dout_o = cB_dout;
+
+  // START & FINISH
+  initial begin
+    $dumpvars(0, async_fifo_2deep);
+  end
 
 endmodule

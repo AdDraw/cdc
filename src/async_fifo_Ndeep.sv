@@ -125,7 +125,7 @@ module async_fifo_Ndeep #(
   assign cB_rrdy_o = ~cB_empty;
   assign cB_dout_o = cB_dout;
 
-   // START & FINISH
+  // START & FINISH
   initial begin
     $dumpvars(0, async_fifo_Ndeep);
   end
