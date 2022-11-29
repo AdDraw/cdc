@@ -1,12 +1,14 @@
+import os
 import random
 
 import cocotb
 import numpy as np
 from cocotb.clock import Clock
 from cocotb.regression import TestFactory
-from cocotb.triggers import ClockCycles, FallingEdge, ReadOnly, RisingEdge, Timer
+from cocotb.triggers import (ClockCycles, FallingEdge, ReadOnly, RisingEdge,
+                             Timer)
 
-import os
+from custom_clk import CustomClk
 
 
 class Interface:
@@ -105,67 +107,11 @@ class asyncFTB:
         cocotb.log.info("Reset Done!")
 
 
-class CustomClk(Clock):
-    def __init__(
-        self,
-        signal,
-        period,
-        init_phase: int = 0,
-        duty_cycle: float = 0.5,
-        dc_jitter: float = 0,
-        period_jitter: float = 0,
-    ):
-        assert 0 < duty_cycle < 1
-        assert 0 <= dc_jitter <= 0.2
-        assert 0 <= period_jitter <= 0.2
-        self.signal = signal
-        self.period = period
-        self.init_phase = init_phase
-        self.duty_cycle = duty_cycle
-        self.dc_jitter = dc_jitter
-        self.period_jitter = period_jitter
-
-    async def start(self, start_high: int = True):
-        st0_val = start_high
-        st1_val = not start_high
-
-        # Phase Shift impact on the starting_val
-        ph_switch = self.period * self.duty_cycle
-        ph_arg = self.period * ((self.init_phase / 360) % 1)
-        if ph_arg >= ph_switch:
-            self.signal.setimmediatevalue(st1_val)
-            ph_wait = int(round(self.period - ph_arg, 3) * 1000)
-            await Timer(ph_wait, units="ps")
-        else:
-            self.signal.setimmediatevalue(st0_val)
-            p_st0 = int(round(ph_switch - ph_arg, 3) * 1000)
-            p_st1 = int(round(self.period - ph_switch, 3) * 1000)
-            await Timer(p_st0, units="ps")
-            self.signal.setimmediatevalue(st1_val)
-            await Timer(p_st1, units="ps")
-
-        while True:
-            # calc new period + duty_cycle
-            p_jitt = random.gauss(1, self.period_jitter / 2)
-            dc_jitt = random.gauss(1, self.dc_jitter / 2)
-            period_jittered = self.period * p_jitt
-            duty_cycle_jittered = self.duty_cycle * dc_jitt
-            high_p = period_jittered * duty_cycle_jittered
-            low_p = period_jittered * (1 - duty_cycle_jittered)
-            st0_round = round(high_p, 3)
-            st1_round = round(low_p, 3)
-            # apply
-            self.signal.setimmediatevalue(st0_val)  # Stage 0
-            await Timer(time=int(st0_round * 1000), units="ps")
-            self.signal.setimmediatevalue(st1_val)  # Stage 1
-            await Timer(time=int(st1_round * 1000), units="ps")
-
-
 async def test(
     dut,
     clkA_period: int,
     clkB_period: int,
-    clkB_offset: int,
+    clkB_phase_shift: int,
     simple_clocks: bool = False,
 ):
     # Init TB class
@@ -175,21 +121,21 @@ async def test(
     # Generate clocks
     if simple_clocks:
         cocotb.start_soon(Clock(dut.clkA_i, clkA_period, "ns").start())
-        await Timer(clkB_offset, "ps")
         cocotb.start_soon(Clock(dut.clkB_i, clkB_period, "ns").start())
     else:
         cocotb.start_soon(
             CustomClk(
-                dut.clkA_i, clkA_period, dc_jitter=0.05, period_jitter=0.2
+                dut.clkA_i, clkA_period, dc_jitt_sigma=0.05, p_jitt_sigma=0.1, units="ns"
             ).start()
         )
         cocotb.start_soon(
             CustomClk(
                 dut.clkB_i,
                 clkB_period,
-                init_phase=clkB_offset,
-                dc_jitter=0.05,
-                period_jitter=0.2,
+                phase_shift=clkB_phase_shift,
+                dc_jitt_sigma=0.05,
+                p_jitt_sigma=0.1,
+                units="ns",
             ).start()
         )
 
@@ -223,7 +169,6 @@ async def full_test(
     dut,
     clkA_period: int = 5,
     clkB_period: int = 20,
-    clkB_offset: int = 0,
     simple_clocks: bool = False,
 ):
     # Init TB class
@@ -232,21 +177,20 @@ async def full_test(
     # Generate clocks
     if simple_clocks:
         cocotb.start_soon(Clock(dut.clkA_i, clkA_period, "ns").start())
-        await Timer(clkB_offset, "ps")
         cocotb.start_soon(Clock(dut.clkB_i, clkB_period, "ns").start())
     else:
         cocotb.start_soon(
             CustomClk(
-                dut.clkA_i, clkA_period, dc_jitter=0.05, period_jitter=0.2
+                dut.clkA_i, clkA_period, dc_jitt_sigma=0.05, p_jitt_sigma=0.1
             ).start()
         )
         cocotb.start_soon(
             CustomClk(
                 dut.clkB_i,
                 clkB_period,
-                init_phase=clkB_offset,
-                dc_jitter=0.05,
-                period_jitter=0.2,
+                phase_shift=123,
+                dc_jitt_sigma=0.05,
+                p_jitt_sigma=0.1,
             ).start()
         )
 
@@ -292,10 +236,10 @@ offset_n = 2
 clkA_periods = [random.randrange(1, 50, 1) for x in range(period_n)]
 clkB_periods = [random.randrange(1, 5, 1) for x in range(period_n)]
 clk_periods = np.concatenate([np.array(clkA_periods), np.array(clkB_periods)])
-offsets = [random.randrange(0, 360, 1) for x in range(offset_n)]
+phase_shifts = [random.randrange(0, 360, 1) for x in range(offset_n)]
 
 tf1 = TestFactory(test)
 tf1.add_option("clkA_period", clk_periods)
 tf1.add_option("clkB_period", clk_periods)
-tf1.add_option("clkB_offset", offsets)
+tf1.add_option("clkB_phase_shift", phase_shifts)
 tf1.generate_tests("generic test")
