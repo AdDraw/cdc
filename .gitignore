@@ -6,3 +6,6 @@ __pycache__
 *.pytest*
 *.out
 *.log
+logs
+*_files
+syn/*-netlist.*
