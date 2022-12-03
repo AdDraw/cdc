@@ -1,32 +1,34 @@
+#!/usr/bin/tclsh
 # Common backend for synth + opt + report for yosys
 set std_lib $::env(STD_LIB)
 
 # Read Verilog part
-for { set index 0 }  { $index < [array size files] - 1 }  { incr index } {
-  read_verilog -sv -defer $src/$files($index)
+for { set idx 0 }  { $idx < [llength $files] - 1 }  { incr idx } {
+  read_verilog -sv -defer $src/[lindex $files $idx]
 }
-read_verilog -sv $src/$files([expr [array size files] - 1])
+read_verilog -sv $src/[lindex $files [expr [llength $files] - 1]]
 
 log "SCRIPT_INFO: Parameters and their values:"
-for { set index 0 }  { $index < [array size params] }  { incr index } {
-  if { [info exists ::env($params($index))] } {
-    set values($index) $::env($params($index))
+foreach name [array names params] {
+  if { [info exists ::env($name)] } {
+    set params($name) $::env($name)
   }
-  log "SCRIPT_INFO: $index. : $params($index) = $values($index)"
+  log "SCRIPT_INFO: $name = $params($name)"
 }
 
 # IF SHOW_PARAMS is set to 1, it only specifies what the TOPMODULE parameters are
 # it also shows params and values lists of parameters that are modifiable and their default values
 if {$::env(SHOW_PARAMS) == 1} {
   read_verilog -sv ../src/async_fifo_Ndeep.sv
-  log "Parameters from the top-module"
+  log "Top-module Parameters:"
   chparam -list
   exit 0
 }
 
 # Set parameter values
-for { set index 0 }  { $index < [array size params] }  { incr index } {
-  chparam -set $params($index) $values($index) $top_module
+puts "Set parameters"
+foreach name [array names params] {
+  chparam -set $name $params($name) $top_module
 }
 
 hierarchy -top $top_module -keep_portwidths -check
@@ -41,8 +43,5 @@ if { [info exists ::env(XDOT)] } {
 
 json -o $::env(JSON_PATH)/$top_module.json
 write_verilog ./$top_module-netlist.sv
-
-stat -top $top_module -liberty $std_lib -tech cmos
-chparam -list
 
 stat -top $top_module -liberty $std_lib -tech cmos
