@@ -4,6 +4,7 @@ import random
 import cocotb
 import numpy as np
 from cocotb.clock import Clock
+from cocotb.handle import HierarchyObject
 from cocotb.regression import TestFactory
 from cocotb.triggers import (ClockCycles, FallingEdge, ReadOnly, RisingEdge,
                              Timer)
@@ -108,7 +109,7 @@ class asyncFTB:
 
 
 async def test(
-    dut,
+    dut: HierarchyObject,
     clkA_period: int,
     clkB_period: int,
     clkB_phase_shift: int,
@@ -125,7 +126,11 @@ async def test(
     else:
         cocotb.start_soon(
             CustomClk(
-                dut.clkA_i, clkA_period, dc_jitt_sigma=0.05, p_jitt_sigma=0.1, units="ns"
+                dut.clkA_i,
+                clkA_period,
+                dc_jitt_sigma=0.05,
+                p_jitt_sigma=0.1,
+                units="ns",
             ).start()
         )
         cocotb.start_soon(
@@ -166,7 +171,7 @@ async def test(
 
 @cocotb.test()
 async def full_test(
-    dut,
+    dut: HierarchyObject,
     clkA_period: int = 5,
     clkB_period: int = 20,
     simple_clocks: bool = False,
@@ -201,12 +206,15 @@ async def full_test(
 
     # Generate inputs to fully fill the FIFO
     try:
-      input_len = pow(2, dut.BUFFER_DEPTH_POWER.value) - 1
+        input_len = pow(2, dut.BUFFER_DEPTH_POWER.value) - 1
     except AttributeError:
-      # let's assume DEPTH_POWER = 1
-      input_len = pow(2, 1) - 1
+        if os.environ["deep2"] == "ok":
+            input_len = pow(2, 1) - 1
+        elif int(os.environ["SYNTH"]):
+            input_len = pow(2, int(os.environ["BUFFER_DEPTH_POWER"])) - 1
+        else:
+            raise ValueError
 
-    print(input_len)
     inputs = afifo_tb.gen_inputs(8, input_len)
 
     # Send N values to the DUT
@@ -243,8 +251,8 @@ clkB_periods = [random.randrange(1, 5, 1) for x in range(period_n)]
 clk_periods = np.concatenate([np.array(clkA_periods), np.array(clkB_periods)])
 phase_shifts = [random.randrange(0, 360, 1) for x in range(offset_n)]
 
-tf1 = TestFactory(test)
-tf1.add_option("clkA_period", clk_periods)
-tf1.add_option("clkB_period", clk_periods)
-tf1.add_option("clkB_phase_shift", phase_shifts)
-tf1.generate_tests("generic test")
+tf = TestFactory(test)
+tf.add_option("clkA_period", clk_periods)
+tf.add_option("clkB_period", clk_periods)
+tf.add_option("clkB_phase_shift", phase_shifts)
+tf.generate_tests("generic test")
