@@ -8,4 +8,8 @@ jobs:
     - uses: actions/checkout@master
     - uses: chipsalliance/verible-linter-action@main
       with:
+<<<<<<< HEAD
         github_token: ${{ secrets.GITHUB_TOKEN }}
+=======
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+>>>>>>> 5890f29 (ff)
