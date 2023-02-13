@@ -4,4 +4,5 @@ jobs:
   hi:
     runs-on: ubuntu-latest
     steps:
+    - name: "Saying Hi"
       run: echo "Hi"

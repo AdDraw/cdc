@@ -1,8 +1,9 @@
 name: main
-on: pull_request
-  paths:
-    - '**.sv'
-    - '**.v'
+on:
+  pull_request:
+    paths:
+      - '**.sv'
+      - '**.v'
 jobs:
   lint:
     runs-on: ubuntu-latest
