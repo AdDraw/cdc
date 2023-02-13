@@ -1,12 +1,8 @@
-name: Verible linter example
-on:
-  pull_request:
+name: main
+on: pull_request
 jobs:
-  lint:
+  hi:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - uses: chipsalliance/verible-linter-action@main
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        config_file: .github/verible_rules/lint_rules.txt
+    - name: "Saying Hi"
+      run: echo "Hi"
