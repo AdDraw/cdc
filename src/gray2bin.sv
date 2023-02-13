@@ -3,7 +3,7 @@
 */
 
 module gray2bin #(
-    parameter DATA_WIDTH = 3
+    parameter integer DATA_WIDTH = 3
   ) (
     input  [DATA_WIDTH-1:0] gray_i,
     output [DATA_WIDTH-1:0] bin_o
@@ -13,7 +13,7 @@ module gray2bin #(
   assign xor_res_array[0] = gray_i;
   genvar gi;
   generate
-    for (gi = 1; gi < DATA_WIDTH ; gi = gi + 1 ) begin
+    for (gi = 1; gi < DATA_WIDTH ; gi = gi + 1 ) begin: g_gray2bin
       assign xor_res_array[gi] = xor_res_array[gi - 1] ^ (gray_i >> gi);
     end
   endgenerate

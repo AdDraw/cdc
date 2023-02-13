@@ -9,3 +9,4 @@ jobs:
     - uses: chipsalliance/verible-linter-action@main
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        config_file: .github/verible_rules/lint_rules.txt

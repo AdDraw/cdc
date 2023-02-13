@@ -2,7 +2,7 @@
     Converts binary to Gray
 */
 module bin2gray #(
-    parameter DATA_WIDTH = 3
+    parameter integer DATA_WIDTH = 3
   ) (
     input  [DATA_WIDTH-1:0] bin_data_i,
     output [DATA_WIDTH-1:0] gray_data_o
