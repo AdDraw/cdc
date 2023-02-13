@@ -4,4 +4,4 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: AdDraw/verible-lint@main
+    - uses: AdDraw/verible_lint@main
