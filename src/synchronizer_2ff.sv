@@ -5,7 +5,7 @@
 */
 
 module synchronizer_2ff #(
-    parameter DATA_WIDTH = 1
+    parameter integer DATA_WIDTH = 1
   ) (
     input clk_i,
     input rst_ni,
