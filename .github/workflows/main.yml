@@ -2,6 +2,6 @@ name: Main
 on: pull_request
 jobs:
   lint:
-  runs-on: ubuntu-latest
-  steps:
-  - uses: AdDraw/verible-lint@main
+    runs-on: ubuntu-latest
+    steps:
+    - uses: AdDraw/verible-lint@main
