@@ -1,7 +1,7 @@
-name: Main
+name: main
 on: pull_request
 jobs:
-  lint:
+  hi:
     runs-on: ubuntu-latest
     steps:
-    - uses: AdDraw/verible-linter-action@main
+      run: echo "Hi"
