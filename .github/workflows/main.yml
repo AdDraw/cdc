@@ -12,4 +12,4 @@ jobs:
     - name: actionlint with reviewdog
       uses: reviewdog/action-actionlint@v1.36.0
       with:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ secrets.GITHUB_TOKEN }}
