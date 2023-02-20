@@ -27,7 +27,7 @@ module async_fifo_Ndeep #(
     input                     a_rst_ni,
     input                     a_we_i,
     input  [DATA_WIDTH-1 : 0] a_din_i,
-    output                    a_wasdassdrdy_o,
+    output                    a_wrdy,
     // READ PORT CLKB
     input                     clk_b_i,
     input                     b_rst_ni,
