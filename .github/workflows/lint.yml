@@ -9,6 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: AdDraw/verible-linter-action@lint_50_test
+    - uses: AdDraw/verible-linter-action@line_50_test
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
