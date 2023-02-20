@@ -1,4 +1,4 @@
-name: Lint Verilog/SysVerilog
+name: CHIPSALLIANCE:Lint Verilog/SysVerilog
 on:
   pull_request:
     paths:
@@ -9,6 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: AdDraw/verible-linter-action@line_50_test
+    - uses: chipsalliance/verible-linter-action@main
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
