@@ -1,8 +1,15 @@
 name: main
-on: pull_request
+on: [pull_request]
 jobs:
   hi:
     runs-on: ubuntu-latest
     steps:
     - name: "Saying Hi"
       run: echo "Hi"
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: reviewdog/action-actionlint@v1
+        with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
