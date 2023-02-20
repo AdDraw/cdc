@@ -1,0 +1,20 @@
+name: Lint Verilog/SysVerilog:external_repo
+on:
+  pull_request:
+    paths:
+      - '**.sv'
+      - '**.v'
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: AdDraw/verible-linter-action@line_50_test
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: logs
+        path: |
+          ./**/*.log
