@@ -15,6 +15,6 @@ jobs:
     - name: Archive production artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: logs
+        name: line50-logs
         path: |
           ./**/*.log
