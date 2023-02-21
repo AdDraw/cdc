@@ -1,4 +1,4 @@
-name: ADDRAW:Lint Verilog/SysVerilog
+name: CHIPSALLIANCE:PR-CHECK:Lint Verilog/SysVerilog
 on:
   pull_request:
     paths:
@@ -9,12 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: AdDraw/verible-linter-action@line_50_test
+    - uses: chipsalliance/verible-linter-action@main
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        reviewdog_reporter: github-pr-check
     - name: Archive production artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: addraw-logs
+        name: pr-check-logs
         path: |
           ./**/*.log

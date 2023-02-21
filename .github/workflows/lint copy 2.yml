@@ -1,4 +1,4 @@
-name: ADDRAW:Lint Verilog/SysVerilog
+name: Lint Verilog/SysVerilog:external_repo
 on:
   pull_request:
     paths:
@@ -12,9 +12,10 @@ jobs:
     - uses: AdDraw/verible-linter-action@line_50_test
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        reviewdog_reporter: github-pr-check
     - name: Archive production artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: addraw-logs
+        name: line50-logs
         path: |
           ./**/*.log
